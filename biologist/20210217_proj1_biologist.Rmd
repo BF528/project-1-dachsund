@@ -1,0 +1,429 @@
+---
+title: "20210217 Project 1 Biologist"
+author: "Allison Nau"
+date: "2/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Login to scc:
+ssh -X anau@scc2.bu.edu
+
+General project info:
+/project/bf528/project_1/doc/
+
+Change to project directory:
+cd /project/bf528/project_1
+cd data
+cd /projectnb2/bf528/users/dachshund/project_1
+
+Make directory
+mkdir biologist
+
+Long form listing with permissions:
+ls -la
+
+To install bioconductor:
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+BiocManager::install(version = "3.12")
+
+TO install packages
+BiocManager::install(c("hgu133plus2.db"))
+BiocManager::install(c("GSEABase"))
+
+***
+
+
+
+```{r}
+# Load libraries
+library("hgu133plus2.db")
+library(GSEABase)
+library(tidyverse)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+# To check memory limit and adjust (on pc):
+# memory.limit()  # To check
+# memory.limit()
+```
+```{r}
+# Package citation commands:
+citation("hgu133plus2.db")
+citation("GSEABase")
+```
+
+
+```{r}
+# Read in differential expression results:
+diff_exp <- read.csv(file="project_1_step_5_6_2_fromanalyst_20210222v3_mod.csv", header = TRUE)
+```
+
+```{r}
+# Map probeset IDs
+gene_symbol_matches <- AnnotationDbi::select(hgu133plus2.db, keys=diff_exp$probe, columns=("SYMBOL"))
+```
+
+```{r}
+# Add gene symbols to probeset dataframe
+exp_w_symbol <- merge(x=diff_exp, y=gene_symbol_matches, by.x="probe", by.y="PROBEID")
+summary(exp_w_symbol)
+```
+
+```{r}
+# Remove missing values:
+exp_w_symbol <- exp_w_symbol[!is.na(exp_w_symbol$SYMBOL),]
+summary(exp_w_symbol)
+```
+
+From Marisa 2013 supplement:
+"For all signatures used, genes were matched to our probe sets by the 
+Gene Symbol annotation
+and only the most variant probe set (maximal rCV) was selected."
+
+
+I kept the probes with the least significant p-value for each gene, to help 
+enable choosing the most promising genes for a follow up study and to 
+reduce the chance that there was some bias between sample groups (one region
+of a sequence had a more common gene variant in one group, one region of 
+a sequence was more degraded in dieseased group due to sample processing, etc.)
+
+```{r}
+# Grab all symbols in dataframe:
+symbols_in_df <- exp_w_symbol$SYMBOL
+cat("Full length: ")
+cat(length(symbols_in_df), "\n")
+
+# Remove duplicate symbols in list:
+symbols_in_df <- unique(symbols_in_df)
+cat("Unique length: ")
+cat(length(symbols_in_df), "\n")
+
+```
+```{r}
+# Convert current dataframe to tibble:
+summary(exp_w_symbol)
+exp_w_symbol <- as_tibble(exp_w_symbol)
+summary(exp_w_symbol)
+```
+
+```{r}
+# Remove duplicate symbols, keeping the value 
+# that had the least significant p-value
+# in case there was some bias between the sample groups (one region of a sequence
+# was more degraded in disease due to sample processing, etc.)
+
+exp_no_dup <-exp_w_symbol %>%
+  group_by(SYMBOL) %>%
+  filter(adj_p==max(adj_p)) %>%
+  ungroup(SYMBOL)
+
+# The above doesn't remove duplicates if adj_p values are equal, so 
+# just choose 1 (choose the "max" string probe name):
+exp_no_dup <- exp_no_dup %>%
+  group_by(SYMBOL) %>%
+  filter(probe==max(probe)) %>%
+  ungroup(SYMBOL)
+
+summary(exp_no_dup)
+
+```
+
+
+```{r}
+# Grab top 1000 expressed genes using the T-test as a proxy:
+top_1000 <- slice_max(exp_no_dup, order_by=t, n=1000)
+top_10 <- slice_max(exp_no_dup, order_by=t, n=10)
+print(head(top_1000))
+```
+
+```{r}
+# Grab bottom 1000 expressed genes
+bottom_1000 <- slice_min(exp_no_dup, order_by=t, n=1000)
+bottom_10 <- slice_min(exp_no_dup, order_by=t, n=10)
+print(head(bottom_1000))
+```
+
+```{r}
+# Combine the top and bottom expression:
+top_and_bottom_1000 <- rbind(top_1000, bottom_1000)
+top_and_bottom_10 <- rbind(top_10, bottom_10)
+
+```
+
+```{r}
+# Print table of top 10 and bottom 10:
+kable(top_and_bottom_10, digits=100)
+# Could pass more formatting: format.args = list(scientific=TRUE) 
+
+# Save CSV:
+write.csv(top_and_bottom_10, file="top_and_bottom_10.csv", row.names=FALSE)
+```
+
+To get all the functions in the GSEABase package:
+ls("package:GSEABase")
+
+```{r}
+# Read in GSEA_gene_sets
+# To get all the functions in the GSEABase package:
+# ls("package:GSEABase")
+
+# KEGG
+kegg_set <- getGmt(con="c2.cp.kegg.v7.2.symbols_kegg_sym.gmt")
+
+# GO
+go_set <- getGmt(con="c5.go.v7.2.symbols_go_sym.gmt")
+
+# Hallmark
+hm_set <- getGmt(con="h.all.v7.2.symbols_hallmark_sym.gmt")
+
+```
+
+```{r}
+# Number of genesets in each collection:
+
+# Kegg should have 186 gene sets
+print("Number of gene sets in KEGG:")
+num_kegg <- length(kegg_set)
+print(num_kegg)
+
+
+# GO should have 10271 gene sets
+print("Number of gene sets in GO:")
+num_go <- length(go_set)
+print(num_go)
+
+# Hallmark should have 50 gene sets
+print("Number of gene sets in Halmark:")
+num_hm <- length(hm_set)
+print(num_hm)
+
+```
+The number of gene sets in GO, KEGG, and Hallmark collectons were 
+`r num_go`, `r num_kegg`,  and `r num_hm` respectively.
+
+
+```{r}
+# Vector of genes differentially expressed: by adjusted p-value < 0.05
+df_diff_exp <- exp_no_dup[exp_no_dup$adj_p<0.05,]
+summary(df_diff_exp)
+  
+diff_exp_gene_vector <- df_diff_exp$SYMBOL
+
+# Check if any duplicates snuck through into vector:
+any(duplicated(diff_exp_gene_vector))
+diff_exp_gene_vector[duplicated(diff_exp_gene_vector)]
+  
+```
+
+```{r}
+# Vector of all genes remaining in set:
+all_gene_still_in <- exp_no_dup$SYMBOL
+
+# Vector of all non-differentially expressed genes:
+non_diff_vector <- setdiff(all_gene_still_in, diff_exp_gene_vector)
+
+# Lengths of resulting vectors
+num_still_in <- length(all_gene_still_in)
+num_diff_in <- length(diff_exp_gene_vector)
+num_not_diff <- length(non_diff_vector)
+
+cat("Num genes in: ", num_still_in, sep="")
+cat("\nNum diff exp genes: ", num_diff_in, sep="")
+cat("\nNum not diff exp: ", num_not_diff, sep="")
+cat("\nDiff exp + not diff exp: ", num_diff_in+num_not_diff)
+cat("\n")
+
+```
+
+
+```{r}
+# Function to create contingency table for each geneset:
+# Takes parameters (GSEABase::GeneSet of genes to compare to, 
+# GSEABase::GeneSet of differentailly experessed genes, 
+# GSEABase::GeneSet of non-differentially expressed genes)
+# Returns vector representing the core of a contigency table:
+# c(Differentially expressed in gene set, Differentially expressed not
+# in gene set, Not differentially Expressed in gene set, Not differentially
+# expressed)
+gene_contingency <- function(gs, de, nde){
+  # Number of differentially expressed genes, via geneIds :
+  num_de <- length(geneIds(de))
+  # Number of not-differentially expressed genes:
+  num_nde <- length(geneIds(nde))
+  # Genes in geneset and differentially expressed genes::
+  de_in <- gs & de
+  num_de_in <- length(geneIds(de_in))
+  # Differentially expressed number not in:
+  num_de_notin <- num_de - num_de_in
+  # Genes in nde and gs:
+  notde_in <- gs & nde
+  num_notde_in <- length(geneIds(notde_in))
+  # Not differentially expressed not in:
+  num_notde_notin <- num_nde - num_notde_in
+  # Create the inner part of the contingency table and return:
+  contingency_table <- c(num_de_in, num_de_notin, num_notde_in, num_notde_notin)
+  return(contingency_table)
+}
+
+# Create genesets of vectors:
+diff_exp_gene_gs <- GeneSet(diff_exp_gene_vector, setName="diff_exp")
+print(diff_exp_gene_gs)
+non_diff_gs <- GeneSet(non_diff_vector, setName="non_diff")
+print(non_diff_gs)
+
+
+# Test function using only one geneset:
+one_gene_set <- go_set[[1]]
+print(one_gene_set)
+
+one_cont <- gene_contingency(one_gene_set, diff_exp_gene_gs, non_diff_gs)
+print(one_cont)
+```
+
+
+```{r}
+# Create contingency tables for each set 
+
+# Initialize an empty list:
+kegg_contigs <- list()
+go_contigs <- list()
+hm_contigs <- list()
+
+# Loop through each gene set:
+#Kegg:
+for (my_gs in kegg_set)
+{
+  my_table <- gene_contingency(my_gs, diff_exp_gene_gs, non_diff_gs)
+  kegg_contigs[[setName(my_gs)]] <- my_table
+} 
+
+# GO:
+for (my_gs in go_set)
+{
+  my_table <- gene_contingency(my_gs, diff_exp_gene_gs, non_diff_gs)
+  go_contigs[[setName(my_gs)]] <- my_table
+} 
+
+# Hallmark:
+for (my_gs in hm_set)
+{
+  my_table <- gene_contingency(my_gs, diff_exp_gene_gs, non_diff_gs)
+  hm_contigs[[setName(my_gs)]] <- my_table
+} 
+
+```
+
+```{r}
+# Try fisher test for just one geneset:
+my_fisher <- fisher.test(matrix(kegg_contigs[[1]],nrow=2))
+my_p <- my_fisher$p.value
+my_stat <- my_fisher$estimate[[1]]
+print(my_fisher)
+names(kegg_contigs[1])
+```
+
+
+```{r}
+# Initialize empty data_frames to store fisher results:
+fisher_results_kegg <- data.frame(collection=character(),
+                             gene_set=character(),
+                             stat=double(),
+                             pvalue=double())
+fisher_results_go <- data.frame(collection=character(),
+                             gene_set=character(),
+                             stat=double(),
+                             pvalue=double())
+fisher_results_hm <- data.frame(collection=character(),
+                             gene_set=character(),
+                             stat=double(),
+                             pvalue=double())
+
+# Loop through all the contingency tables and calculate fisher's test:
+# (Note, this would have less repetitive code if a function was created to do 
+# Each of 3)
+# Kegg:
+for (my_gs in names(kegg_contigs))
+{
+  my_fisher <- fisher.test(matrix(kegg_contigs[[my_gs]],nrow=2))
+  my_p <- my_fisher$p.value
+  my_stat <- my_fisher$estimate[[1]]
+  fisher_results_kegg[nrow(fisher_results_kegg)+1, ] <- c("KEGG", my_gs, my_stat, my_p)
+}
+
+# GO:
+for (my_gs in names(go_contigs))
+{
+  my_fisher <- fisher.test(matrix(go_contigs[[my_gs]],nrow=2))
+  my_p <- my_fisher$p.value
+  my_stat <- my_fisher$estimate[[1]]
+  fisher_results_go[nrow(fisher_results_go)+1, ] <- c("GO", my_gs, my_stat, my_p)
+}
+
+# Hallmark:
+for (my_gs in names(hm_contigs))
+{
+  my_fisher <- fisher.test(matrix(hm_contigs[[my_gs]],nrow=2))
+  my_p <- my_fisher$p.value
+  my_stat <- my_fisher$estimate[[1]]
+  fisher_results_hm[nrow(fisher_results_hm)+1, ] <- c("Hallmark", my_gs, my_stat, my_p)
+}
+
+```
+
+```{r}
+# Adjust p_value using Benjamini-Hochberg (FDR) merthod
+# Note, this is being done for each genecollection (KEGG, GO, Hallmark) 
+# separately
+fisher_results_kegg$padj <- p.adjust(fisher_results_kegg$pvalue, method="BH")
+fisher_results_go$padj <- p.adjust(fisher_results_go$pvalue, method="BH")
+fisher_results_hm$padj <- p.adjust(fisher_results_hm$pvalue, method="BH")
+```
+
+```{r}
+# Number of statisically significant genesets:
+# KEGG:
+sig_kegg <- fisher_results_kegg[fisher_results_kegg$padj<0.05,]
+sig_kegg_num <- length(sig_kegg$gene_set)
+cat("Statistically enriched genesets in KEGG: ", sig_kegg_num, "\n")
+
+# GO:
+sig_go <- fisher_results_go[fisher_results_go$padj<0.05,]
+sig_go_num <- length(sig_go$gene_set)
+cat("Statistically enriched genesets in GO: ", sig_go_num, "\n")
+
+# Hallmark:
+sig_hm <- fisher_results_hm[fisher_results_hm$padj<0.05,]
+sig_hm_num <- length(sig_hm$gene_set)
+cat("Statistically enriched genesets in Hallmark: ", sig_hm_num, "\n")
+
+# Total number:
+sig_total_num <- sig_kegg_num + sig_go_num + sig_hm_num
+cat("Statistically enriched genesets (total): ", sig_total_num, "\n")
+```
+
+There were `r sig_go_num`, `r sig_kegg_num`, and `r sig_hm_num` statistically
+significant enriched gene sets in the GO, KEGG, and Hallmark genesets respectively.
+
+There were `r sig_total_num` statistically significant enriched gene sets in total.
+
+```{r}
+# Top 3 genesets for each:
+kegg_top3 <- slice_min(fisher_results_kegg, order_by=padj, n=3)
+go_top3 <- slice_min(fisher_results_go, order_by=padj, n=3)
+hm_top3 <- slice_min(fisher_results_hm, order_by=padj, n=3)
+
+top3s <- rbind(kegg_top3, go_top3, hm_top3)
+
+print(top3s)
+```
+
+```{r}
+write.csv(top3s, file="geneset_top_results.csv")
+
+```
