@@ -23,7 +23,7 @@ setwd("/projectnb/bf528/users/dachshund/project_1/samples/all_samples")
 # read .CEL files in current directory and normalize them
 # cel_path = '/projectnb/bf528/users/dachshund/project_1/samples'
 data = ReadAffy()
-norm_data <- rma(data, normalize = TRUE)
+norm_data <- rma(dat)
 
 # get RMA normalized expression values for each array (133 samples, 54675 features)
 # the ExpressionSet class combines different pieces of into into a single convenient structure
@@ -84,14 +84,15 @@ dim(norm_data_matrix)
 # by the authors for their analysis
 meta_data <- read.csv("/project/bf528/project_1/doc/proj_metadata.csv")
 
-# Batch effects include both Center and RNA extraction method and have been merged into a single variable 
-# called *normalizationcombatbatch* in the annotation file
+# Batch effects include both Center and RNA extraction method and have been merged
+# into a single variable called *normalizationcombatbatch* in the annotation file
 bat = meta_data$normalizationcombatbatch
 dim(bat)
 
-# mod is a model matrix that contains biological covariates, including the outcome of interest
-# this ensures that biological variability is preserved
-# our features of interest are tumor and MMR status. They have been merged into a single variable called *normalizationcombatmod*
+# mod is a model matrix that contains biological covariates, including the outcome of 
+# interest. This ensures that biological variability is preserved. Our features
+# of interest are tumor and MMR status. They have been merged into a single 
+# variable called *normalizationcombatmod*
 model <- model.matrix(~normalizationcombatmod, data = meta_data)
 dim(model)
 
@@ -101,8 +102,8 @@ combat_corrected <- ComBat(dat = norm_data_matrix, batch = bat, mod = model)
 
 ###### principal component analysis (PCA) ----
 # perform PCA on the batch corrected and normalized data
-# PCA finds a new coordinate system for multivariate data such that the irst coordinate has maximal variance, the second coordinate has maximal 
-# variance subject to being orthogonal to the first
+# PCA finds a new coordinate system for multivariate data such that the first coordinate has maximal variance, 
+# the second coordinate has maximal variance subject to being orthogonal to the first
 
 # center and scale data (this is done within a column and within each gene rather than sample, hence the need to transpose)
 transposed_combat_corrected <- t(combat_corrected)
@@ -112,9 +113,11 @@ scaled_transposed <- scale(transposed_combat_corrected)
 untransposed_scaled_data <- t(scaled_transposed)
 
 # perform a principal components analysis on the given data matrix 
-# the prcomp function provides a resulting object that gives us standard deviation, proportion of variance explained by each principal component, 
+# the prcomp function provides a resulting object that gives us standard deviation,
+# proportion of variance explained by each principal component, 
 # and the cumulative proportion of variance explained
-# scale = false means that data is not scaled, center = false means that input variables are not shifted to be zero centered
+# scale = false means that data is not scaled
+# center = false means that input variables are not shifted to be zero centered
 pca <- prcomp(untransposed_scaled_data, scale = FALSE, center = FALSE)
 colnames(pca)
 
@@ -191,8 +194,10 @@ pca_no_outliers_summary$importance
 ggplot(pc_no_outliers_df, mapping = aes(x = PC1, y = PC2)) + 
   geom_point(size=1.5) +
   # labs(title = "PCA plot") +
+  annotate('text', label='C', x=-Inf, y=Inf, hjust=-0.5, vjust=1.5, size = 6) +
   xlab(paste0("PC1:",format(pca_no_outliers_summary$importance[2,1]*100, digits = 4), "%")) +
-  ylab(paste0("PC2:", format(pca_no_outliers_summary$importance[2,2]*100, digits = 3), "%"))
+  ylab(paste0("PC2:", format(pca_no_outliers_summary$importance[2,2]*100, digits = 3), "%")) 
+
 
 
 ##### write csv files ----
