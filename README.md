@@ -18,9 +18,6 @@ Abhishek Thakar
 
 Marisa et al. Gene Expression Classification of Colon Cancer into Molecular Subtypes: Characterization, Validation, and Prognostic Value. PLoS Medicine, May 2013. PMID: 23700391
 
-
-Provide a brief description of each script/code file in this repo, what it does, and how to execute it
-
 **data_normalization_QC.R** -- R script to pre-process and normalize all Affymetrix chip data from Marisa et al. through the Robust Multi-array Average (RMA) method. Quality controls such as relative log expression (RLE) and normalized unscaled standard errors (NUSE) were performed. Batch effects were corrected using the ComBat algorithm. Resulting data was plotted on principal component analysis (PCA).
 
 **20210217_proj1_biologist.Rmd** -- R markdown script to assign gene names to the probes used in the dataset, identify which genes were most differentially expressed, and to identify which GO, KEGG, and Hallmark gene sets were most enriched in the differentially expressed genes. Can be executed from within Rstudio, does not require SCC. Requires packages "hgu133plus2.db", GSEABase, tidyverse, dplyr, knitr, and kableExtra. Requires input file "project_1_step_5_6_2_fromanalyst_20210222v3_mod.csv". Also requires .gmt files for KEGG, GO, and Hallmark genesets ("c2.cp.kegg.v7.2.symbols_kegg_sym.gmt", "c5.go.v7.2.symbols_go_sym.gmt", and "h.all.v7.2.symbols_hallmark_sym.gmt"). 
