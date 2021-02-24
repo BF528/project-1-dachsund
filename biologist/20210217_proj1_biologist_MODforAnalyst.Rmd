@@ -1,0 +1,83 @@
+---
+title: "20210217 Project 1 Biologist"
+author: "Allison Nau"
+date: "2/24/2021"
+output: html_document
+---
+This version of the script was used to produce the gene name mapping used in 
+table 2 for the analyst.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Login to scc:
+ssh -X anau@scc2.bu.edu
+
+General project info:
+/project/bf528/project_1/doc/
+
+Change to project directory:
+cd /project/bf528/project_1
+cd data
+cd /projectnb2/bf528/users/dachshund/project_1
+
+Make directory
+mkdir biologist
+
+Long form listing with permissions:
+ls -la
+
+To install bioconductor:
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+BiocManager::install(version = "3.12")
+
+TO install packages
+BiocManager::install(c("hgu133plus2.db"))
+BiocManager::install(c("GSEABase"))
+
+***
+
+
+
+```{r}
+# Load libraries
+library("hgu133plus2.db")
+library(GSEABase)
+library(tidyverse)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+# To check memory limit and adjust (on pc):
+# memory.limit()  # To check
+# memory.limit()
+```
+```{r}
+# Package citation commands:
+citation("hgu133plus2.db")
+citation("GSEABase")
+```
+
+
+```{r}
+# Read in differential expression results:
+diff_exp <- read.csv(file="project_1_step_5_6_2_fromanalyst_20210222v3_mod.csv", header = TRUE)
+
+diff_exp_top <- read.csv(file="top_mr.csv", header = TRUE)
+diff_exp_bottom <- read.csv(file="bottom_mr.csv", header = TRUE)
+
+```
+
+```{r}
+# Map probeset IDs
+gene_symbol_matches <- AnnotationDbi::select(hgu133plus2.db, keys=diff_exp$probe, columns=("SYMBOL"))
+
+gene_symbol_matches_top <- AnnotationDbi::select(hgu133plus2.db, keys=diff_exp_top$probe, columns=("SYMBOL"))
+write.csv(gene_symbol_matches_top, file="forMRtop.csv")
+gene_symbol_matches_bottom <- AnnotationDbi::select(hgu133plus2.db, keys=diff_exp_bottom$probe, columns=("SYMBOL"))
+write.csv(gene_symbol_matches_bottom, file="forMRbottom.csv")
+
+```
